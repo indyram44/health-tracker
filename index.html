@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="My Health">
+<title>My Health Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1f2435;
+    --border: rgba(255,255,255,0.08);
+    --text: #eef0f6;
+    --muted: #8890a8;
+    --accent-bp: #e87c6a;
+    --accent-gluc: #7bcfb0;
+    --accent-wt: #a78bfa;
+    --accent-hr: #f472b6;
+    --accent-o2: #60a5fa;
+    --radius: 18px;
+    --font-display: 'DM Serif Display', serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    max-width: 430px;
+    margin: 0 auto;
+    padding-bottom: 90px;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .header {
+    padding: 56px 24px 20px;
+    background: linear-gradient(180deg, #0d1020 0%, transparent 100%);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .header-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .greeting {
+    font-family: var(--font-display);
+    font-size: 28px;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .greeting em { font-style: italic; color: var(--accent-bp); }
+
+  .date-pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+
+  /* Tab bar */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: 16px 24px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .tab.active {
+    color: var(--text);
+    border-color: transparent;
+  }
+
+  .tab[data-tab="log"].active { background: var(--accent-bp); }
+  .tab[data-tab="trends"].active { background: #2d3655; color: #a5b4fc; border-color: #3d4a7a; }
+
+  /* Main content */
+  .page { display: none; padding: 20px 24px; }
+  .page.active { display: block; }
+
+  /* Metric cards grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    cursor: pointer;
+    transition: transform .15s, border-color .15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .card[data-metric="bp"]::before { background: var(--accent-bp); }
+  .card[data-metric="glucose"]::before { background: var(--accent-gluc); }
+  .card[data-metric="weight"]::before { background: var(--accent-wt); }
+  .card[data-metric="hr"]::before { background: var(--accent-hr); }
+  .card[data-metric="o2"]::before { background: var(--accent-o2); }
+
+  .card:active { transform: scale(0.97); }
+  .card.full-width { grid-column: 1 / -1; }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .card-value {
+    font-family: var(--font-display);
+    font-size: 32px;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .card-unit {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .card-time {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .card-empty {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-style: italic;
+    color: var(--muted);
+    opacity: .5;
+  }
+
+  .add-btn-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+
+  /* Log section */
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+
+  .log-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .log-entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .log-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .log-meta { flex: 1; }
+  .log-name { font-size: 13px; font-weight: 500; }
+  .log-time { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .log-val {
+    font-family: var(--font-display);
+    font-size: 18px;
+    text-align: right;
+  }
+
+  .log-unit-sm { font-family: var(--font-body); font-size: 11px; color: var(--muted); }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  .empty-state p { font-size: 14px; margin-top: 8px; }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent-bp);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 16px 32px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 8px 32px rgba(232,124,106,.4);
+    transition: transform .15s, box-shadow .15s;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fab:active { transform: translateX(-50%) scale(0.96); box-shadow: 0 4px 16px rgba(232,124,106,.3); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+  }
+
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 28px 28px 0 0;
+    padding: 28px 24px 40px;
+    width: 100%;
+    max-height: 90dvh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.32,.72,0,1);
+  }
+
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .modal-title {
+    font-family: var(--font-display);
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .form-group { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .metric-select-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .metric-chip {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+
+  .metric-chip.selected { color: white; border-color: transparent; }
+  .metric-chip[data-m="bp"].selected { background: var(--accent-bp); }
+  .metric-chip[data-m="glucose"].selected { background: var(--accent-gluc); color: #0f1117; }
+  .metric-chip[data-m="weight"].selected { background: var(--accent-wt); }
+  .metric-chip[data-m="hr"].selected { background: var(--accent-hr); }
+  .metric-chip[data-m="o2"].selected { background: var(--accent-o2); }
+
+  .input-fields { display: block; }
+
+  .field-section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 18px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .field-section-label::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  #fields-bp .field-section-label::before { background: var(--accent-bp); }
+  #fields-glucose .field-section-label::before { background: var(--accent-gluc); }
+  #fields-weight .field-section-label::before { background: var(--accent-wt); }
+  #fields-hr .field-section-label::before { background: var(--accent-hr); }
+  #fields-o2 .field-section-label::before { background: var(--accent-o2); }
+
+  .input-row { display: flex; gap: 10px; }
+
+  input[type="number"], input[type="datetime-local"], input[type="text"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+    transition: border-color .15s;
+  }
+
+  input:focus, select:focus { border-color: rgba(255,255,255,.25); }
+
+  .notes-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    resize: none;
+    outline: none;
+    min-height: 80px;
+    transition: border-color .15s;
+  }
+
+  .notes-input:focus { border-color: rgba(255,255,255,.25); }
+
+  .save-btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent-bp);
+    color: white;
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity .15s;
+  }
+
+  .save-btn:active { opacity: .85; }
+
+  /* Charts page */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  .chart-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .chart-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  canvas { max-height: 160px; }
+
+  .no-data-chart {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 30px 0;
+  }
+
+  /* History page */
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .filter-chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+
+  .filter-chip.active {
+    background: var(--surface2);
+    color: var(--text);
+    border-color: rgba(255,255,255,.15);
+  }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    opacity: .5;
+    transition: opacity .15s;
+  }
+
+  .delete-btn:active { opacity: 1; color: var(--accent-bp); }
+
+  /* Export button */
+  .export-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: border-color .15s, background .15s;
+    white-space: nowrap;
+  }
+
+  .export-btn:active { border-color: rgba(255,255,255,.25); background: var(--surface); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 430px;
+    background: rgba(15,17,23,.92);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    cursor: pointer;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 10px;
+    transition: color .15s;
+  }
+
+  .nav-item.active { color: var(--accent-bp); }
+
+  .nav-icon { font-size: 20px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="greeting">Good <em id="timeOfDay">morning</em>,<br>how are you feeling?</div>
+    <div class="date-pill" id="dateDisplay"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard" onclick="showPage('dashboard')">Dashboard</button>
+    <button class="tab" data-tab="trends" onclick="showPage('trends')">Trends</button>
+    <button class="tab" data-tab="history" onclick="showPage('history')">History</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="cards-grid">
+    <div class="card" data-metric="bp" onclick="openModal('bp')">
+      <div class="card-label">Blood Pressure</div>
+      <div id="dash-bp-val" class="card-empty">—</div>
+      <div id="dash-bp-unit" class="card-unit"></div>
+      <div id="dash-bp-time" class="card-time"></div>
+    </div>
+    <div class="card" data-metric="glucose" onclick="openModal('glucose')">
+      <div class="card-label">Blood Glucose</div>
+      <div id="dash-glucose-val" class="card-empty">—</div>
+      <div id="dash-glucose-unit" class="card-unit"></div>
+      <div id="dash-glucose-time" class="card-time"></div>
+    </div>
+    <div class="card" data-metric="weight" onclick="openModal('weight')">
+      <div class="card-label">Weight</div>
+      <div id="dash-weight-val" class="card-empty">—</div>
+      <div id="dash-weight-unit" class="card-unit"></div>
+      <div id="dash-weight-time" class="card-time"></div>
+    </div>
+    <div class="card" data-metric="hr" onclick="openModal('hr')">
+      <div class="card-label">Heart Rate</div>
+      <div id="dash-hr-val" class="card-empty">—</div>
+      <div id="dash-hr-unit" class="card-unit"></div>
+      <div id="dash-hr-time" class="card-time"></div>
+    </div>
+    <div class="card full-width" data-metric="o2" onclick="openModal('o2')">
+      <div class="card-label">Pulse Ox (SpO₂)</div>
+      <div id="dash-o2-val" class="card-empty">—</div>
+      <div id="dash-o2-unit" class="card-unit"></div>
+      <div id="dash-o2-time" class="card-time"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TRENDS -->
+<div class="page" id="page-trends">
+  <div class="chart-card">
+    <div class="chart-title"><span class="chart-dot" style="background:var(--accent-bp)"></span>Blood Pressure</div>
+    <div id="chart-bp-empty" class="no-data-chart">No data yet — log your first reading!</div>
+    <canvas id="chart-bp" style="display:none"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title"><span class="chart-dot" style="background:var(--accent-gluc)"></span>Blood Glucose</div>
+    <div id="chart-glucose-empty" class="no-data-chart">No data yet</div>
+    <canvas id="chart-glucose" style="display:none"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title"><span class="chart-dot" style="background:var(--accent-wt)"></span>Weight</div>
+    <div id="chart-weight-empty" class="no-data-chart">No data yet</div>
+    <canvas id="chart-weight" style="display:none"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title"><span class="chart-dot" style="background:var(--accent-hr)"></span>Heart Rate</div>
+    <div id="chart-hr-empty" class="no-data-chart">No data yet</div>
+    <canvas id="chart-hr" style="display:none"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title"><span class="chart-dot" style="background:var(--accent-o2)"></span>Pulse Ox (SpO₂)</div>
+    <div id="chart-o2-empty" class="no-data-chart">No data yet</div>
+    <canvas id="chart-o2" style="display:none"></canvas>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div class="filter-row" style="margin-bottom:0;flex:1;">
+      <button class="filter-chip active" data-filter="all" onclick="setFilter('all')">All</button>
+      <button class="filter-chip" data-filter="bp" onclick="setFilter('bp')">Blood Pressure</button>
+      <button class="filter-chip" data-filter="glucose" onclick="setFilter('glucose')">Glucose</button>
+      <button class="filter-chip" data-filter="weight" onclick="setFilter('weight')">Weight</button>
+      <button class="filter-chip" data-filter="hr" onclick="setFilter('hr')">Heart Rate</button>
+      <button class="filter-chip" data-filter="o2" onclick="setFilter('o2')">SpO₂</button>
+    </div>
+    <button class="export-btn" onclick="exportCSV()" title="Export to CSV">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </button>
+  </div>
+  <div class="log-list" id="history-list">
+    <div class="empty-state">
+      <div style="font-size:32px">📋</div>
+      <p>No readings yet.<br>Tap + to log your first one!</p>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openModal(null)">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  Log Reading
+</button>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnBg(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log a Reading</div>
+
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;">Fill in any readings you have — leave the rest blank.</p>
+
+    <!-- BP fields -->
+    <div class="input-fields" id="fields-bp">
+      <div class="field-section-label">Blood Pressure</div>
+      <div class="form-group">
+        <label>Systolic / Diastolic (mmHg)</label>
+        <div class="input-row">
+          <input type="number" id="bp-sys" placeholder="120" min="60" max="250">
+          <input type="number" id="bp-dia" placeholder="80" min="40" max="150">
+        </div>
+      </div>
+    </div>
+
+    <!-- Glucose fields -->
+    <div class="input-fields" id="fields-glucose">
+      <div class="field-section-label">Blood Glucose</div>
+      <div class="form-group">
+        <label>Value (mg/dL)</label>
+        <input type="number" id="glucose-val" placeholder="95" min="20" max="600">
+      </div>
+      <div class="form-group">
+        <label>Timing</label>
+        <select id="glucose-timing">
+          <option value="fasting">Fasting</option>
+          <option value="before meal">Before meal</option>
+          <option value="after meal">After meal</option>
+          <option value="bedtime">Bedtime</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Weight fields -->
+    <div class="input-fields" id="fields-weight">
+      <div class="field-section-label">Weight</div>
+      <div class="form-group">
+        <label>Value (lbs)</label>
+        <input type="number" id="weight-val" placeholder="145" min="50" max="600" step="0.1">
+      </div>
+    </div>
+
+    <!-- Heart Rate fields -->
+    <div class="input-fields" id="fields-hr">
+      <div class="field-section-label">Heart Rate</div>
+      <div class="form-group">
+        <label>Value (bpm)</label>
+        <input type="number" id="hr-val" placeholder="72" min="30" max="250">
+      </div>
+    </div>
+
+    <!-- SpO2 fields -->
+    <div class="input-fields" id="fields-o2">
+      <div class="field-section-label">Pulse Ox (SpO₂)</div>
+      <div class="form-group">
+        <label>Oxygen Saturation (%)</label>
+        <input type="number" id="o2-val" placeholder="98" min="70" max="100">
+      </div>
+    </div>
+
+    <div class="form-group" id="common-fields">
+      <label>Date &amp; Time</label>
+      <input type="datetime-local" id="entry-time">
+      <div style="margin-top:10px">
+        <label>Notes (optional)</label>
+        <textarea class="notes-input" id="entry-notes" placeholder="e.g. after walking, feeling anxious…"></textarea>
+      </div>
+    </div>
+
+    <button class="save-btn" onclick="saveEntry()">Save Reading</button>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-nav="dashboard" onclick="showPage('dashboard')">
+    <span class="nav-icon">🏠</span>
+    Home
+  </button>
+  <button class="nav-item" data-nav="trends" onclick="showPage('trends')">
+    <span class="nav-icon">📈</span>
+    Trends
+  </button>
+  <button class="nav-item" data-nav="history" onclick="showPage('history')">
+    <span class="nav-icon">📋</span>
+    History
+  </button>
+</nav>
+
+<script>
+// ── State ──
+let entries = JSON.parse(localStorage.getItem('health_entries') || '[]');
+let currentFilter = 'all';
+let charts = {};
+
+const METRICS = {
+  bp:      { label: 'Blood Pressure', color: '#e87c6a', unit: 'mmHg' },
+  glucose: { label: 'Blood Glucose',  color: '#7bcfb0', unit: 'mg/dL' },
+  weight:  { label: 'Weight',         color: '#a78bfa', unit: 'lbs' },
+  hr:      { label: 'Heart Rate',     color: '#f472b6', unit: 'bpm' },
+  o2:      { label: 'Pulse Ox',       color: '#60a5fa', unit: '%' }
+};
+
+// ── Init ──
+function init() {
+  const h = new Date().getHours();
+  document.getElementById('timeOfDay').textContent =
+    h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+
+  const now = new Date();
+  document.getElementById('dateDisplay').textContent =
+    now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  updateDashboard();
+}
+
+// ── Navigation ──
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.nav === name));
+
+  const fab = document.querySelector('.fab');
+  fab.style.display = name === 'history' ? 'flex' : 'flex';
+
+  if (name === 'trends') renderCharts();
+  if (name === 'history') renderHistory();
+}
+
+// ── Modal ──
+function openModal(metric) {
+  document.getElementById('modalOverlay').classList.add('open');
+
+  // Clear all fields
+  ['bp-sys','bp-dia','glucose-val','weight-val','hr-val','o2-val'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('entry-notes').value = '';
+  document.getElementById('glucose-timing').value = 'fasting';
+
+  // Pre-set datetime to now
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('entry-time').value = now.toISOString().slice(0, 16);
+
+  // Scroll modal to top
+  document.querySelector('.modal').scrollTop = 0;
+
+  // If launched from a specific card, scroll that field into view after a tick
+  if (metric) {
+    setTimeout(() => {
+      const el = document.getElementById('fields-' + metric);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function closeModalOnBg(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+// ── Save — collects ALL filled fields ──
+function saveEntry() {
+  const time = document.getElementById('entry-time').value;
+  const notes = document.getElementById('entry-notes').value.trim();
+  if (!time) { alert('Please set a date and time.'); return; }
+
+  const timestamp = Date.now();
+  let saved = 0;
+
+  // Blood pressure
+  const sys = +document.getElementById('bp-sys').value;
+  const dia = +document.getElementById('bp-dia').value;
+  if (sys && dia) {
+    entries.unshift({ id: timestamp, metric: 'bp', time, notes, sys, dia });
+    saved++;
+  } else if (sys || dia) {
+    alert('Blood pressure needs both systolic and diastolic values. Please fill in both or leave both blank.');
+    return;
+  }
+
+  // Glucose
+  const glucoseVal = +document.getElementById('glucose-val').value;
+  if (glucoseVal) {
+    entries.unshift({ id: timestamp + 1, metric: 'glucose', time, notes,
+      value: glucoseVal, timing: document.getElementById('glucose-timing').value });
+    saved++;
+  }
+
+  // Weight
+  const weightVal = +document.getElementById('weight-val').value;
+  if (weightVal) {
+    entries.unshift({ id: timestamp + 2, metric: 'weight', time, notes, value: weightVal });
+    saved++;
+  }
+
+  // Heart rate
+  const hrVal = +document.getElementById('hr-val').value;
+  if (hrVal) {
+    entries.unshift({ id: timestamp + 3, metric: 'hr', time, notes, value: hrVal });
+    saved++;
+  }
+
+  // SpO2
+  const o2Val = +document.getElementById('o2-val').value;
+  if (o2Val) {
+    entries.unshift({ id: timestamp + 4, metric: 'o2', time, notes, value: o2Val });
+    saved++;
+  }
+
+  if (saved === 0) {
+    alert('Please enter at least one reading before saving.');
+    return;
+  }
+
+  localStorage.setItem('health_entries', JSON.stringify(entries));
+  closeModal();
+  updateDashboard();
+
+  const activePage = document.querySelector('.page.active').id.replace('page-', '');
+  if (activePage === 'history') renderHistory();
+  if (activePage === 'trends') renderCharts();
+}
+
+// ── Dashboard ──
+function updateDashboard() {
+  ['bp', 'glucose', 'weight', 'hr', 'o2'].forEach(m => {
+    const latest = entries.find(e => e.metric === m);
+    const valEl = document.getElementById('dash-' + m + '-val');
+    const unitEl = document.getElementById('dash-' + m + '-unit');
+    const timeEl = document.getElementById('dash-' + m + '-time');
+
+    if (latest) {
+      valEl.className = 'card-value';
+      if (m === 'bp') {
+        valEl.textContent = latest.sys + '/' + latest.dia;
+      } else {
+        valEl.textContent = latest.value;
+      }
+      unitEl.textContent = METRICS[m].unit;
+      timeEl.textContent = formatTime(latest.time);
+    } else {
+      valEl.className = 'card-empty';
+      valEl.textContent = '—';
+      unitEl.textContent = '';
+      timeEl.textContent = 'Tap to log';
+    }
+  });
+}
+
+// ── History ──
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const filtered = currentFilter === 'all' ? entries : entries.filter(e => e.metric === currentFilter);
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div style="font-size:32px">📋</div><p>No readings yet.<br>Tap + to log your first one!</p></div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(e => {
+    const m = METRICS[e.metric];
+    const val = e.metric === 'bp' ? `${e.sys}/${e.dia}` : e.value;
+    const sub = e.metric === 'glucose' ? e.timing + (e.notes ? ' · ' + e.notes : '') : (e.notes || '');
+    return `<div class="log-entry">
+      <div class="log-dot" style="background:${m.color}"></div>
+      <div class="log-meta">
+        <div class="log-name">${m.label}</div>
+        <div class="log-time">${formatTime(e.time)}${sub ? ' · ' + sub : ''}</div>
+      </div>
+      <div>
+        <div class="log-val" style="color:${m.color}">${val} <span class="log-unit-sm">${m.unit}</span></div>
+      </div>
+      <button class="delete-btn" onclick="deleteEntry(${e.id})" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteEntry(id) {
+  if (!confirm('Delete this reading?')) return;
+  entries = entries.filter(e => e.id !== id);
+  localStorage.setItem('health_entries', JSON.stringify(entries));
+  updateDashboard();
+  renderHistory();
+}
+
+// ── Charts ──
+function renderCharts() {
+  renderLineChart('bp', entries.filter(e => e.metric === 'bp').reverse(),
+    e => e.sys, e => e.dia, ['Systolic', 'Diastolic'], ['#e87c6a', '#f4a897']);
+
+  renderSimpleChart('glucose', entries.filter(e => e.metric === 'glucose').reverse(),
+    e => e.value, '#7bcfb0');
+
+  renderSimpleChart('weight', entries.filter(e => e.metric === 'weight').reverse(),
+    e => e.value, '#a78bfa');
+
+  renderSimpleChart('hr', entries.filter(e => e.metric === 'hr').reverse(),
+    e => e.value, '#f472b6');
+
+  renderSimpleChart('o2', entries.filter(e => e.metric === 'o2').reverse(),
+    e => e.value, '#60a5fa');
+}
+
+function chartDefaults(labels) {
+  return {
+    labels,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: '#8890a8', font: { family: 'DM Sans', size: 10 }, maxTicksLimit: 6 },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        },
+        y: {
+          ticks: { color: '#8890a8', font: { family: 'DM Sans', size: 10 } },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        }
+      },
+      elements: { point: { radius: 4, hoverRadius: 6 } }
+    }
+  };
+}
+
+function renderSimpleChart(key, data, valFn, color) {
+  const canvas = document.getElementById('chart-' + key);
+  const empty = document.getElementById('chart-' + key + '-empty');
+
+  if (data.length < 2) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+    return;
+  }
+
+  canvas.style.display = 'block';
+  empty.style.display = 'none';
+  if (charts[key]) charts[key].destroy();
+
+  const labels = data.map(e => formatShortDate(e.time));
+  const defaults = chartDefaults(labels);
+
+  charts[key] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: data.map(valFn),
+        borderColor: color,
+        backgroundColor: color + '22',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 2,
+        pointBackgroundColor: color
+      }]
+    },
+    options: defaults.options
+  });
+}
+
+function renderLineChart(key, data, val1, val2, labels2, colors) {
+  const canvas = document.getElementById('chart-' + key);
+  const empty = document.getElementById('chart-' + key + '-empty');
+
+  if (data.length < 2) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+    return;
+  }
+
+  canvas.style.display = 'block';
+  empty.style.display = 'none';
+  if (charts[key]) charts[key].destroy();
+
+  const labels = data.map(e => formatShortDate(e.time));
+  const opts = chartDefaults(labels);
+  opts.options.plugins.legend = {
+    display: true,
+    labels: { color: '#8890a8', font: { family: 'DM Sans', size: 11 }, boxWidth: 12 }
+  };
+
+  charts[key] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: labels2[0],
+          data: data.map(val1),
+          borderColor: colors[0],
+          backgroundColor: colors[0] + '22',
+          fill: false,
+          tension: 0.4,
+          borderWidth: 2,
+          pointBackgroundColor: colors[0]
+        },
+        {
+          label: labels2[1],
+          data: data.map(val2),
+          borderColor: colors[1],
+          backgroundColor: colors[1] + '22',
+          fill: false,
+          tension: 0.4,
+          borderWidth: 2,
+          pointBackgroundColor: colors[1]
+        }
+      ]
+    },
+    options: opts.options
+  });
+}
+
+// ── Helpers ──
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+         d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatShortDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── CSV Export ──
+function exportCSV() {
+  if (entries.length === 0) {
+    alert('No readings to export yet.');
+    return;
+  }
+
+  const rows = [
+    ['Date', 'Time', 'Metric', 'Value 1', 'Value 2', 'Unit', 'Notes', 'Extra']
+  ];
+
+  // Sort oldest first for the export
+  const sorted = [...entries].sort((a, b) => new Date(a.time) - new Date(b.time));
+
+  sorted.forEach(e => {
+    const d = new Date(e.time);
+    const date = d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const notes = (e.notes || '').replace(/,/g, ';');
+
+    if (e.metric === 'bp') {
+      rows.push([date, time, 'Blood Pressure', e.sys, e.dia, 'mmHg', notes, '']);
+    } else if (e.metric === 'glucose') {
+      rows.push([date, time, 'Blood Glucose', e.value, '', 'mg/dL', notes, e.timing || '']);
+    } else if (e.metric === 'weight') {
+      rows.push([date, time, 'Weight', e.value, '', 'lbs', notes, '']);
+    } else if (e.metric === 'hr') {
+      rows.push([date, time, 'Heart Rate', e.value, '', 'bpm', notes, '']);
+    } else if (e.metric === 'o2') {
+      rows.push([date, time, 'Pulse Ox (SpO2)', e.value, '', '%', notes, '']);
+    }
+  });
+
+  const csv = rows.map(r => r.map(cell => `"${cell}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `health-readings-${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+init();
+</script>
+</body>
+</html>
